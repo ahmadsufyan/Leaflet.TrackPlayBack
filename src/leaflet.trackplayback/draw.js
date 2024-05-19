@@ -1,15 +1,13 @@
 import L from 'leaflet'
 
-import {
-  TrackLayer
-} from './tracklayer'
+import { TrackLayer } from './tracklayer'
+import { isArray } from './util'
 
 /**
  * 绘制类
  * 完成轨迹线、轨迹点、目标物的绘制工作
  */
 export const Draw = L.Class.extend({
-
   trackPointOptions: {
     isDraw: false,
     useCanvas: true,
@@ -70,14 +68,25 @@ export const Draw = L.Class.extend({
 
     // 目标如果使用图片，先加载图片
     if (this.targetOptions.useImg) {
-      const img = new Image()
-      img.onload = () => {
-        this._targetImg = img
+      if (isArray(this.targetOptions.imgUrl)) {
+        this._targetImg = new Array(this.targetOptions.imgUrl.length)
+        this.targetOptions.imgUrl.forEach((imgUrl, index) => {
+          this._targetImg[index] = new Image()
+          this._targetImg[index].onerror = () => {
+            throw new Error('img load error!')
+          }
+          this._targetImg[index].src = imgUrl
+        })
+      } else {
+        const img = new Image()
+        img.onload = () => {
+          this._targetImg = img
+        }
+        img.onerror = () => {
+          throw new Error('img load error!')
+        }
+        img.src = this.targetOptions.imgUrl
       }
-      img.onerror = () => {
-        throw new Error('img load error!')
-      }
-      img.src = this.targetOptions.imgUrl
     }
   },
 
@@ -85,9 +94,14 @@ export const Draw = L.Class.extend({
     this._trackLayerUpdate()
   },
 
-  drawTrack: function (trackpoints) {
+  drawTrack: function (trackpoints, index) {
+    this._drawTrack(trackpoints, index)
+    this._drawMarker(trackpoints, index)
+  },
+
+  drawMarker: function (trackpoints, index) {
     this._bufferTracks.push(trackpoints)
-    this._drawTrack(trackpoints)
+    this._drawMarker(trackpoints, index)
   },
 
   showTrackPoint: function () {
@@ -130,9 +144,16 @@ export const Draw = L.Class.extend({
   _trackLayerUpdate: function () {
     if (this._bufferTracks.length) {
       this._clearLayer()
-      this._bufferTracks.forEach(function (element, index) {
-        this._drawTrack(element)
-      }.bind(this))
+      this._bufferTracks.forEach(
+        function (element, index) {
+          this._drawTrack(element, index)
+        }.bind(this)
+      )
+      this._bufferTracks.forEach(
+        function (element, index) {
+          this._drawMarker(element, index)
+        }.bind(this)
+      )
     }
   },
 
@@ -164,39 +185,42 @@ export const Draw = L.Class.extend({
     }
     this._canvas.style.cursor = 'default'
     let latlng = L.latLng(trackpoint.lat, trackpoint.lng)
-    let tooltip = this._tooltip = L.tooltip(this.toolTipOptions)
+    let tooltip = (this._tooltip = L.tooltip(this.toolTipOptions))
     tooltip.setLatLng(latlng)
     tooltip.addTo(this._map)
     tooltip.setContent(this._getTooltipText(trackpoint))
   },
 
-  _drawTrack: function (trackpoints) {
+  _drawTrack: function (trackpoints, index) {
     // 画轨迹线
     if (this._showTrackLine) {
-      this._drawTrackLine(trackpoints)
-    }
-    // 画船
-    let targetPoint = trackpoints[trackpoints.length - 1]
-    if (this.targetOptions.useImg && this._targetImg) {
-      this._drawShipImage(targetPoint)
-    } else {
-      this._drawShipCanvas(targetPoint)
-    }
-    // 画标注信息
-    if (this.targetOptions.showText) {
-      this._drawtxt(`航向：${parseInt(targetPoint.dir)}度`, targetPoint)
+      this._drawTrackLine(trackpoints, index)
     }
     // 画经过的轨迹点
     if (this._showTrackPoint) {
       if (this.trackPointOptions.useCanvas) {
-        this._drawTrackPointsCanvas(trackpoints)
+        this._drawTrackPointsCanvas(trackpoints, index)
       } else {
         this._drawTrackPointsSvg(trackpoints)
       }
     }
   },
 
-  _drawTrackLine: function (trackpoints) {
+  _drawMarker: function (trackpoints, index) {
+    // 画船
+    let targetPoint = trackpoints[trackpoints.length - 1]
+    if (this.targetOptions.useImg && this._targetImg) {
+      this._drawShipImage(targetPoint, index)
+    } else {
+      this._drawShipCanvas(targetPoint, index)
+    }
+    // 画标注信息
+    if (this.targetOptions.showText) {
+      this._drawtxt(`航向：${parseInt(targetPoint.dir)}度`, targetPoint)
+    }
+  },
+
+  _drawTrackLine: function (trackpoints, index = 0) {
     let options = this.trackLineOptions
     let tp0 = this._getLayerPoint(trackpoints[0])
     this._ctx.save()
@@ -209,18 +233,22 @@ export const Draw = L.Class.extend({
     }
     this._ctx.globalAlpha = options.opacity
     if (options.stroke) {
-      this._ctx.strokeStyle = options.color
+      this._ctx.strokeStyle = isArray(options.color)
+        ? options.color[index]
+        : options.color
       this._ctx.lineWidth = options.weight
       this._ctx.stroke()
     }
     if (options.fill) {
-      this._ctx.fillStyle = options.fillColor
+      this._ctx.fillStyle = isArray(options.fillColor)
+        ? options.fillColor[index]
+        : options.fillColor
       this._ctx.fill()
     }
     this._ctx.restore()
   },
 
-  _drawTrackPointsCanvas: function (trackpoints) {
+  _drawTrackPointsCanvas: function (trackpoints, index = 0) {
     let options = this.trackPointOptions
     this._ctx.save()
     for (let i = 0, len = trackpoints.length; i < len; i++) {
@@ -232,11 +260,15 @@ export const Draw = L.Class.extend({
         this._ctx.arc(point.x, point.y, radius, 0, Math.PI * 2, false)
         this._ctx.globalAlpha = options.opacity
         if (options.stroke) {
-          this._ctx.strokeStyle = options.color
+          this._ctx.strokeStyle = isArray(options.color)
+            ? options.color[index]
+            : options.color
           this._ctx.stroke()
         }
         if (options.fill) {
-          this._ctx.fillStyle = options.fillColor
+          this._ctx.fillStyle = isArray(options.fillColor)
+            ? options.fillColor[index]
+            : options.fillColor
           this._ctx.fill()
         }
       }
@@ -249,7 +281,10 @@ export const Draw = L.Class.extend({
       if (trackpoints[i].isOrigin) {
         let latLng = L.latLng(trackpoints[i].lat, trackpoints[i].lng)
         let cricleMarker = L.circleMarker(latLng, this.trackPointOptions)
-        cricleMarker.bindTooltip(this._getTooltipText(trackpoints[i]), this.toolTipOptions)
+        cricleMarker.bindTooltip(
+          this._getTooltipText(trackpoints[i]),
+          this.toolTipOptions
+        )
         this._trackPointFeatureGroup.addLayer(cricleMarker)
       }
     }
@@ -266,7 +301,7 @@ export const Draw = L.Class.extend({
     this._ctx.restore()
   },
 
-  _drawShipCanvas: function (trackpoint) {
+  _drawShipCanvas: function (trackpoint, index = 0) {
     let point = this._getLayerPoint(trackpoint)
     let rotate = trackpoint.dir || 0
     let w = this.targetOptions.width
@@ -274,8 +309,12 @@ export const Draw = L.Class.extend({
     let dh = h / 3
 
     this._ctx.save()
-    this._ctx.fillStyle = this.targetOptions.fillColor
-    this._ctx.strokeStyle = this.targetOptions.color
+    this._ctx.fillStyle = isArray(this.targetOptions.fillColor)
+      ? this.targetOptions.fillColor[index]
+      : this.targetOptions.fillColor
+    this._ctx.strokeStyle = isArray(this.targetOptions.color)
+      ? this.targetOptions.color[index]
+      : this.targetOptions.color
     this._ctx.translate(point.x, point.y)
     this._ctx.rotate((Math.PI / 180) * rotate)
     this._ctx.beginPath()
@@ -290,7 +329,7 @@ export const Draw = L.Class.extend({
     this._ctx.restore()
   },
 
-  _drawShipImage: function (trackpoint) {
+  _drawShipImage: function (trackpoint, index = 0) {
     let point = this._getLayerPoint(trackpoint)
     let dir = trackpoint.dir || 0
     let width = this.targetOptions.width
@@ -302,7 +341,13 @@ export const Draw = L.Class.extend({
     this._ctx.save()
     this._ctx.translate(point.x, point.y)
     this._ctx.rotate((Math.PI / 180) * dir)
-    this._ctx.drawImage(this._targetImg, 0 - offset.x, 0 - offset.y, width, height)
+    this._ctx.drawImage(
+      isArray(this._targetImg) ? this._targetImg[index] : this._targetImg,
+      0 - offset.x,
+      0 - offset.y,
+      width,
+      height
+    )
     this._ctx.restore()
   },
 
@@ -336,7 +381,9 @@ export const Draw = L.Class.extend({
   },
 
   _getLayerPoint (trackpoint) {
-    return this._map.latLngToLayerPoint(L.latLng(trackpoint.lat, trackpoint.lng))
+    return this._map.latLngToLayerPoint(
+      L.latLng(trackpoint.lat, trackpoint.lng)
+    )
   }
 })
 

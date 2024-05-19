@@ -1,18 +1,13 @@
 import L from 'leaflet'
 
-import {
-  isArray
-} from './util'
-import {
-  Track
-} from './track'
+import { isArray } from './util'
+import { Track } from './track'
 
 /**
  * 控制器类
  * 控制轨迹和绘制
  */
 export const TrackController = L.Class.extend({
-
   initialize: function (tracks = [], draw, options) {
     L.setOptions(this, options)
 
@@ -41,16 +36,41 @@ export const TrackController = L.Class.extend({
       this._tracks.push(track)
       this._updateTime()
     } else {
-      throw new Error('tracks must be an instance of `Track` or an array of `Track` instance!')
+      throw new Error(
+        'tracks must be an instance of `Track` or an array of `Track` instance!'
+      )
     }
+  },
+
+  setVisibility: function (visibleIndexes) {
+    this._visibileIndexes = visibleIndexes
   },
 
   drawTracksByTime: function (time) {
     this._draw.clear()
     for (let i = 0, len = this._tracks.length; i < len; i++) {
-      let track = this._tracks[i]
-      let tps = track.getTrackPointsBeforeTime(time)
-      if (tps && tps.length) this._draw.drawTrack(tps)
+      let canAdd =
+        this._visibileIndexes === null || this._visibileIndexes === undefined
+      if (!canAdd) {
+        canAdd = this._visibileIndexes.indexOf(i) !== -1
+      }
+      if (canAdd) {
+        let track = this._tracks[i]
+        let tps = track.getTrackPointsBeforeTime(time)
+        if (tps && tps.length) this._draw.drawTrack(tps, i)
+      }
+    }
+    for (let i = 0, len = this._tracks.length; i < len; i++) {
+      let canAdd =
+        this._visibileIndexes === null || this._visibileIndexes === undefined
+      if (!canAdd) {
+        canAdd = this._visibileIndexes.indexOf(i) !== -1
+      }
+      if (canAdd) {
+        let track = this._tracks[i]
+        let tps = track.getTrackPointsBeforeTime(time)
+        if (tps && tps.length) this._draw.drawMarker(tps, i)
+      }
     }
   },
 
@@ -68,7 +88,6 @@ export const TrackController = L.Class.extend({
       }
     }
   }
-
 })
 
 export const trackController = function (tracks, draw, options) {

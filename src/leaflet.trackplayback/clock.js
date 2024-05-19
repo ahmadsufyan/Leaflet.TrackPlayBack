@@ -88,6 +88,12 @@ export const Clock = L.Class.extend({
     })
   },
 
+  setVisibility: function (visibleIndexes) {
+    this._trackController.setVisibility(visibleIndexes)
+    if (this._intervalID) return
+    this._trackController.drawTracksByTime(this._curTime)
+  },
+
   setSpeed: function (speed) {
     this._speed = speed
     if (this._intervalID) {

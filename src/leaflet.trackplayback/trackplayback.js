@@ -1,17 +1,9 @@
 import L from 'leaflet'
 
-import {
-  Track
-} from './track'
-import {
-  TrackController
-} from './trackcontroller'
-import {
-  Clock
-} from './clock'
-import {
-  Draw
-} from './draw'
+import { Track } from './track'
+import { TrackController } from './trackcontroller'
+import { Clock } from './clock'
+import { Draw } from './draw'
 import * as Util from './util'
 
 /**
@@ -22,7 +14,6 @@ import * as Util from './util'
  * [single track data, single track data, single track data]
  */
 export const TrackPlayBack = L.Class.extend({
-
   includes: L.Evented.prototype || L.Mixin.Events,
 
   initialize: function (data, map, options = {}) {
@@ -96,6 +87,10 @@ export const TrackPlayBack = L.Class.extend({
   },
   hideTrackLine: function () {
     this.draw.hideTrackLine()
+    return this
+  },
+  setVisibility: function (visibleIndexes) {
+    this.clock.setVisibility(visibleIndexes)
     return this
   },
   dispose: function () {
